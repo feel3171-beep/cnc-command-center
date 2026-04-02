@@ -14,6 +14,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app.agents.production_agent import ProductionAgent
 from app.agents.hr_agent import HRAgent
 from app.agents.finance_agent import FinanceAgent
+from app.agents.secretary_agent import SecretaryAgent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("scheduler")
@@ -22,6 +23,7 @@ logger = logging.getLogger("scheduler")
 production_agent = ProductionAgent()
 hr_agent = HRAgent()
 finance_agent = FinanceAgent()
+secretary_agent = SecretaryAgent()
 
 
 def run_production_briefing():
@@ -101,6 +103,26 @@ def run_hr_daily_briefing():
     logger.info(f"[HR] 인사팀 일일 브리핑 완료 ({result['turns']}턴)")
 
 
+def run_secretary_briefing():
+    """비서 아침 브리핑 — 결재/메일 분류 + 일정 (매일 09:00)"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    logger.info(f"[Secretary] 아침 브리핑 시작 ({today})")
+    result = secretary_agent.run(
+        f"[자율 실행] {today} 아침 비서 브리핑을 수행하세요.\n\n"
+        f"1. 오늘 미읽음 이메일 전체 조회 (search_gmail: 'is:unread')\n"
+        f"2. 카테고리 분류:\n"
+        f"   - 결재 도착: 재무/자금 / 인사·노무 / 총무·시설 / 생산·구매 / 영업·연구\n"
+        f"   - 결재 반려: 반려 사유 확인\n"
+        f"   - 업무 메일: 내부 직접 커뮤니케이션 / 외부 거래처\n"
+        f"   - 참조·완료: 건수만 집계\n"
+        f"3. list_calendar_events로 오늘+이번 주 일정 조회\n"
+        f"4. 브리핑 형식으로 정리\n"
+        f"5. Slack #경영기획 채널에 요약 발송\n"
+        f"6. 전체 브리핑 리포트 저장"
+    )
+    logger.info(f"[Secretary] 브리핑 완료 ({result['turns']}턴)")
+
+
 def run_recruitment_pipeline():
     """채용 파이프라인 (월요일 10:30)"""
     logger.info("[HR] 채용 파이프라인 체크")
@@ -131,6 +153,9 @@ def create_scheduler() -> AsyncIOScheduler:
 
     # 인사팀 일일 브리핑: 매일 평일 10시
     scheduler.add_job(run_hr_daily_briefing, CronTrigger(hour="10", day_of_week="mon-fri"), id="hr_daily_briefing")
+
+    # 비서 아침 브리핑: 매일 평일 09:00
+    scheduler.add_job(run_secretary_briefing, CronTrigger(hour="9", day_of_week="mon-fri"), id="secretary_briefing")
 
     # 채용 파이프라인: 월요일 10:30
     scheduler.add_job(run_recruitment_pipeline, CronTrigger(hour="10", minute="30", day_of_week="mon"), id="recruitment_pipeline")
