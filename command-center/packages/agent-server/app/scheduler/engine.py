@@ -83,12 +83,30 @@ def run_weekly_report():
     logger.info(f"[Production] 주간 리포트 완료 ({result['turns']}턴)")
 
 
+def run_hr_daily_briefing():
+    """인사팀 일일 브리핑 (매일 10:00)"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    logger.info(f"[HR] 인사팀 일일 브리핑 시작 ({today})")
+    result = hr_agent.run(
+        f"[자율 실행] {today} 기준 인사팀 일일 브리핑을 생성하세요.\n\n"
+        f"반드시 아래 4개 섹션을 모두 포함해야 합니다:\n"
+        f"[1] 전사 인원 현황 (본부 단위) — TO, 현원, 정규, 도급, 충원율, 충원필요\n"
+        f"[2] 채용 현황 (본부 단위) — 채용요청(정/도), 입사예정(정/도), 미충원\n"
+        f"[3] 입퇴사 현황 — 월별 순증감, 공장 퇴사 유형 추이 (정규/도급 분리)\n"
+        f"[4] 인건비 현황 — 누적/월별, 정규직/도급직 분리\n\n"
+        f"Google Sheets에서 인사 데이터를 읽어서 분석하세요.\n"
+        f"MES DB에서 공장별 인원 데이터를 보완하세요.\n"
+        f"완성된 리포트를 save_report로 저장하고 Slack으로 핵심 요약을 발송하세요."
+    )
+    logger.info(f"[HR] 인사팀 일일 브리핑 완료 ({result['turns']}턴)")
+
+
 def run_recruitment_pipeline():
-    """채용 파이프라인 (월요일 10:00)"""
+    """채용 파이프라인 (월요일 10:30)"""
     logger.info("[HR] 채용 파이프라인 체크")
     result = hr_agent.run(
         "현재 채용 파이프라인 현황을 확인하세요.\n"
-        "미처리 지원자, 면접 예정, 결원 현황을 정리하여 Slack 발송."
+        "본부별 채용요청/입사예정/미충원 현황을 정리하여 Slack 발송."
     )
     logger.info(f"[HR] 채용 파이프라인 완료 ({result['turns']}턴)")
 
@@ -111,8 +129,11 @@ def create_scheduler() -> AsyncIOScheduler:
     # 주간 리포트: 월요일 09시
     scheduler.add_job(run_weekly_report, CronTrigger(hour="9", day_of_week="mon"), id="weekly_report")
 
-    # 채용 파이프라인: 월요일 10시
-    scheduler.add_job(run_recruitment_pipeline, CronTrigger(hour="10", day_of_week="mon"), id="recruitment_pipeline")
+    # 인사팀 일일 브리핑: 매일 평일 10시
+    scheduler.add_job(run_hr_daily_briefing, CronTrigger(hour="10", day_of_week="mon-fri"), id="hr_daily_briefing")
+
+    # 채용 파이프라인: 월요일 10:30
+    scheduler.add_job(run_recruitment_pipeline, CronTrigger(hour="10", minute="30", day_of_week="mon"), id="recruitment_pipeline")
 
     return scheduler
 

@@ -127,7 +127,8 @@ async def scheduler_jobs():
         {"id": "delivery_watch", "name": "납기 감시", "cron": "30 7,13 * * 1-5", "agent": "PRODUCTION"},
         {"id": "exec_briefing", "name": "경영진 브리핑", "cron": "0 18 * * 1-5", "agent": "FINANCE"},
         {"id": "weekly_report", "name": "주간 리포트", "cron": "0 9 * * 1", "agent": "PRODUCTION"},
-        {"id": "recruitment_pipeline", "name": "채용 파이프라인", "cron": "0 10 * * 1", "agent": "HR"},
+        {"id": "hr_daily_briefing", "name": "인사팀 일일 브리핑", "cron": "0 10 * * 1-5", "agent": "HR"},
+        {"id": "recruitment_pipeline", "name": "채용 파이프라인", "cron": "30 10 * * 1", "agent": "HR"},
     ]
     return {"jobs": jobs}
 
