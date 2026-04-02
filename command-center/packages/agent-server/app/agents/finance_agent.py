@@ -1,6 +1,7 @@
 """Finance Agent — 매출/수주/재무 분석 + 금일지출계획서 검증"""
 
 from datetime import datetime
+from pathlib import Path
 from app.agents.base import BaseAgent
 from app.agents.tools.mssql_tools import TOOL_QUERY_SALES_DB, handle_query_db
 from app.agents.tools.gsheet_tools import TOOL_READ_GSHEET, handle_read_gsheet
@@ -14,6 +15,12 @@ from app.agents.tools.nas_tools import (
 
 class FinanceAgent(BaseAgent):
     agent_type = "FINANCE"
+
+    def _load_knowledge(self) -> str:
+        p = Path(__file__).parent.parent / "knowledge" / "finance_data.md"
+        if p.exists():
+            return p.read_text(encoding="utf-8")
+        return "(knowledge file not found)"
 
     @property
     def system_prompt(self) -> str:
@@ -188,6 +195,11 @@ MWIPMATDEF: 자재마스터 (MAT_CODE, MAT_DESC, UNIT)
 - list_nas_files로 폴더 탐색 후 read_nas_excel로 파일 읽기
 - 최신 파일은 날짜(YYMMDD) 기준으로 정렬
 - ~$로 시작하는 파일은 임시파일 (무시)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[학습된 NAS 데이터 — knowledge/finance_data.md 참조]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{self._load_knowledge()}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [공통 규칙]

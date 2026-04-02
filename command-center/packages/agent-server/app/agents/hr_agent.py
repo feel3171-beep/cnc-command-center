@@ -1,6 +1,7 @@
 """HR Agent — 인사팀 일일 브리핑 + 인력 분석"""
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from app.agents.base import BaseAgent
 from app.agents.tools.mssql_tools import TOOL_QUERY_PRODUCTION_DB, handle_query_db
 from app.agents.tools.gsheet_tools import TOOL_READ_GSHEET, handle_read_gsheet
@@ -14,6 +15,12 @@ from app.agents.tools.nas_tools import (
 
 class HRAgent(BaseAgent):
     agent_type = "HR"
+
+    def _load_knowledge(self) -> str:
+        p = Path(__file__).parent.parent / "knowledge" / "hr_data.md"
+        if p.exists():
+            return p.read_text(encoding="utf-8")
+        return "(knowledge file not found)"
 
     @property
     def system_prompt(self) -> str:
@@ -83,6 +90,11 @@ class HRAgent(BaseAgent):
    - Y:/2024~2025 OJT 참여자 명단_상시 업데이트.xlsx — OJT 현황
 
 4. 이전 브리핑 이메일 패턴을 참고하여 동일 형식으로 생성
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[학습된 NAS 데이터 — knowledge/hr_data.md 참조]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{self._load_knowledge()}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [작업 지침]
