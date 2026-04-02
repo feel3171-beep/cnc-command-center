@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>생산 분석 에이전트</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', -apple-system, sans-serif; }
+    .border-l-purple { border-left: 4px solid #8b5cf6; }
+    .border-l-green  { border-left: 4px solid #22c55e; }
+    .border-l-blue   { border-left: 4px solid #3b82f6; }
+    .border-l-gray   { border-left: 4px solid #94a3b8; }
+
+    #chatPanel { transition: width 0.25s ease; }
+
+    .msg-user { background:#3b82f6; color:#fff; border-radius:12px 12px 0 12px; }
+    .msg-ai   { background:#f1f5f9; color:#1e293b; border-radius:12px 12px 12px 0; }
+
+    .dot-anim::after { content:'...'; animation: dots 1.4s infinite step-start; }
+    @keyframes dots { 0%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:#f8fafc; }
+    ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+
+    .tab-active { background:#1e293b; color:#fff; }
+    .tab-inactive { background:#f1f5f9; color:#64748b; }
+    .tab-inactive:hover { background:#e2e8f0; }
+
+    /* 마크다운 스타일 */
+    .prose-chat strong { font-weight:600; }
+    .prose-chat br { display:block; margin:4px 0; }
+  </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col overflow-hidden">
+
+<!-- ─── 헤더 ──────────────────────────────────────────────────────────── -->
+<header class="bg-slate-800 text-white px-5 py-3 flex items-center justify-between shrink-0 shadow-md">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 bg-blue-500 rounded-lg grid place-items-center font-bold text-xs tracking-tight">MES</div>
+    <div>
+      <p class="font-semibold text-sm leading-none">생산 분석 에이전트</p>
+      <p class="text-slate-400 text-xs mt-0.5">MES 실시간 연동 · <span id="headerDate">-</span></p>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <input id="datePicker" type="date"
+      class="bg-slate-700 text-white text-sm px-3 py-1.5 rounded-lg border border-slate-600 focus:outline-none focus:border-blue-400 cursor-pointer">
+    <button onclick="loadAll()"
+      class="bg-blue-600 hover:bg-blue-500 text-sm px-4 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>새로고침
+    </button>
+    <button id="aiBtn" onclick="toggleChat()"
+      class="bg-violet-600 hover:bg-violet-500 text-sm px-4 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+      </svg>AI 분석
+    </button>
+  </div>
+</header>
+
+<!-- ─── 본문 ──────────────────────────────────────────────────────────── -->
+<div class="flex flex-1 overflow-hidden">
+
+  <!-- 대시보드 영역 -->
+  <div id="dashboard" class="flex-1 overflow-y-auto p-4 space-y-4 min-w-0">
+
+    <!-- KPI 카드 4개 -->
+    <div id="kpiCards" class="grid grid-cols-2 xl:grid-cols-4 gap-3"></div>
+
+    <!-- 탭 (추이 / 라인 / 지시목록) -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div class="flex border-b border-slate-100 px-4 pt-3 gap-2">
+        <button class="tab-btn tab-active text-xs px-4 py-1.5 rounded-t-lg" data-tab="trend" onclick="switchTab('trend')">생산 추이</button>
+        <button class="tab-btn tab-inactive text-xs px-4 py-1.5 rounded-t-lg" data-tab="lines" onclick="switchTab('lines')">라인별 현황</button>
+        <button class="tab-btn tab-inactive text-xs px-4 py-1.5 rounded-t-lg" data-tab="orders" onclick="switchTab('orders')">작업지시 목록</button>
+        <!-- 추이 탭 전용 컨트롤 -->
+        <div id="trendControls" class="ml-auto flex gap-1 pb-1">
+          <button class="trend-day-btn text-xs px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-600" data-days="7" onclick="setTrendDays(7)">7일</button>
+          <button class="trend-day-btn text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-500" data-days="14" onclick="setTrendDays(14)">14일</button>
+          <button class="trend-day-btn text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-500" data-days="30" onclick="setTrendDays(30)">30일</button>
+        </div>
+        <!-- 라인/지시 탭 전용 공장 필터 -->
+        <div id="factoryFilter" class="ml-auto flex gap-1 pb-1 hidden">
+          <button class="fac-btn text-xs px-3 py-1 rounded-full bg-slate-700 text-white" data-fc="all" onclick="filterFactory('all')">전체</button>
+          <button class="fac-btn text-xs px-3 py-1 rounded-full bg-violet-100 text-violet-700" data-fc="1100" onclick="filterFactory('1100')">퍼플</button>
+          <button class="fac-btn text-xs px-3 py-1 rounded-full bg-green-100 text-green-700" data-fc="1200" onclick="filterFactory('1200')">그린</button>
+          <button class="fac-btn text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-700" data-fc="1300" onclick="filterFactory('1300')">제3공장</button>
+        </div>
+      </div>
+
+      <!-- 추이 차트 -->
+      <div id="tabTrend" class="tab-content p-4">
+        <canvas id="trendChart" height="90"></canvas>
+      </div>
+
+      <!-- 라인별 현황 테이블 -->
+      <div id="tabLines" class="tab-content hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+              <tr class="text-left text-xs text-slate-500 uppercase tracking-wide">
+                <th class="px-4 py-2.5 font-medium">공장</th>
+                <th class="px-4 py-2.5 font-medium">라인</th>
+                <th class="px-4 py-2.5 font-medium text-right">지시</th>
+                <th class="px-4 py-2.5 font-medium text-right">계획</th>
+                <th class="px-4 py-2.5 font-medium text-right">실적</th>
+                <th class="px-4 py-2.5 font-medium text-right">달성률</th>
+                <th class="px-4 py-2.5 font-medium text-right">양품</th>
+                <th class="px-4 py-2.5 font-medium text-right">불량</th>
+              </tr>
+            </thead>
+            <tbody id="lineTableBody">
+              <tr><td colspan="8" class="text-center py-10 text-slate-400 text-sm">데이터 로딩 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 작업지시 목록 -->
+      <div id="tabOrders" class="tab-content hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+              <tr class="text-left text-xs text-slate-500 uppercase tracking-wide">
+                <th class="px-4 py-2.5 font-medium">공장</th>
+                <th class="px-4 py-2.5 font-medium">지시번호</th>
+                <th class="px-4 py-2.5 font-medium">라인</th>
+                <th class="px-4 py-2.5 font-medium">자재코드</th>
+                <th class="px-4 py-2.5 font-medium">상태</th>
+                <th class="px-4 py-2.5 font-medium text-right">계획</th>
+                <th class="px-4 py-2.5 font-medium text-right">실적</th>
+                <th class="px-4 py-2.5 font-medium text-right">달성률</th>
+              </tr>
+            </thead>
+            <tbody id="orderTableBody">
+              <tr><td colspan="8" class="text-center py-10 text-slate-400 text-sm">데이터 로딩 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /dashboard -->
+
+  <!-- ─── AI 채팅 패널 ──────────────────────────────────────── -->
+  <div id="chatPanel" class="hidden w-[380px] shrink-0 bg-white border-l border-slate-200 flex flex-col">
+    <!-- 채팅 헤더 -->
+    <div class="bg-violet-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
+        <span class="font-medium text-sm">AI 생산 분석</span>
+      </div>
+      <button onclick="toggleChat()" class="text-violet-200 hover:text-white">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- 메시지 영역 -->
+    <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-3">
+      <div class="flex">
+        <div class="msg-ai p-3 text-sm max-w-[92%] leading-relaxed">
+          안녕하세요! 생산 데이터 분석을 도와드리겠습니다.<br><br>
+          <span class="text-slate-400 text-xs">예: "오늘 공장별 달성률 요약해줘"</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 빠른 질문 -->
+    <div class="px-4 py-2 border-t border-slate-100 shrink-0">
+      <div class="flex flex-wrap gap-1">
+        <button onclick="quickSend('오늘 공장별 실적 요약해줘')"
+          class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full transition-colors">오늘 요약</button>
+        <button onclick="quickSend('불량률 높은 라인 TOP 5 알려줘')"
+          class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full transition-colors">불량 분석</button>
+        <button onclick="quickSend('최근 2주 생산 추이 분석해줘')"
+          class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full transition-colors">주간 추이</button>
+        <button onclick="quickSend('달성률이 80% 미만인 라인과 원인 분석해줘')"
+          class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full transition-colors">미달 원인</button>
+        <button onclick="quickSend('현재 진행 중인 작업지시 현황 알려줘')"
+          class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full transition-colors">진행현황</button>
+      </div>
+    </div>
+
+    <!-- 입력창 -->
+    <div class="p-4 border-t border-slate-200 shrink-0">
+      <div class="flex gap-2">
+        <textarea id="chatInput" rows="2" placeholder="질문을 입력하세요... (Shift+Enter: 줄바꿈)"
+          class="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:border-violet-400"
+          onkeydown="handleKey(event)"></textarea>
+        <button id="sendBtn" onclick="sendChat()"
+          class="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-3 rounded-xl transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div><!-- /chatPanel -->
+
+</div><!-- /본문 -->
+
+<script>
+// ── 상태 ──────────────────────────────────────────────────────────────────────
+let currentDate  = '';
+let trendDays    = 7;
+let currentTab   = 'trend';
+let currentFc    = 'all';
+let allLines     = [];
+let allOrders    = [];
+let trendChart   = null;
+let chatOpen     = false;
+
+const FC = {
+  '1100': { name:'퍼플',   border:'border-l-purple', badge:'bg-violet-100 text-violet-700', color:'#8b5cf6' },
+  '1200': { name:'그린',   border:'border-l-green',  badge:'bg-green-100 text-green-700',   color:'#22c55e' },
+  '1300': { name:'제3공장', border:'border-l-blue',   badge:'bg-blue-100 text-blue-700',     color:'#3b82f6' },
+};
+
+// ── 유틸 ──────────────────────────────────────────────────────────────────────
+const fmt   = n  => n != null ? Number(n).toLocaleString('ko-KR') : '0';
+const achCls = r => r >= 95 ? 'bg-green-50 text-green-700 border border-green-200'
+                 : r >= 80  ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                             : 'bg-red-50 text-red-600 border border-red-200';
+const barCls = r => r >= 95 ? 'bg-green-500' : r >= 80 ? 'bg-amber-400' : 'bg-red-400';
+
+// ── 초기화 ────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const r = await fetch('/api/recent-date');
+    const d = await r.json();
+    currentDate = d.date;
+  } catch {
+    currentDate = new Date().toISOString().slice(0, 10);
+  }
+  document.getElementById('datePicker').value = currentDate;
+  document.getElementById('headerDate').textContent = currentDate;
+  await loadAll();
+}
+
+async function loadAll() {
+  currentDate = document.getElementById('datePicker').value;
+  document.getElementById('headerDate').textContent = currentDate;
+  await Promise.all([loadSummary(), loadTrend(), loadLines(), loadOrders()]);
+}
+
+// ── KPI 카드 ──────────────────────────────────────────────────────────────────
+async function loadSummary() {
+  const r = await fetch(`/api/summary?date=${currentDate}`);
+  const d = await r.json();
+  renderKPI(d);
+}
+
+function kpiCard(title, data, borderCls, extraCls = '') {
+  const a = data.achievement_rate;
+  return `
+  <div class="bg-white rounded-xl shadow-sm p-4 ${borderCls} ${extraCls}">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-slate-600 text-sm font-medium">${title}</span>
+      <span class="text-xs px-2 py-0.5 rounded-full ${achCls(a)}">${a.toFixed(1)}%</span>
+    </div>
+    <div class="space-y-1.5">
+      <div class="flex justify-between text-sm">
+        <span class="text-slate-400">계획</span>
+        <span class="text-slate-600">${fmt(data.plan_qty)}</span>
+      </div>
+      <div class="flex justify-between text-sm">
+        <span class="text-slate-400">실적</span>
+        <span class="font-semibold text-slate-800">${fmt(data.actual_qty)}</span>
+      </div>
+      <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+        <div class="${barCls(a)} h-1.5 rounded-full transition-all" style="width:${Math.min(a,100)}%"></div>
+      </div>
+      <div class="flex justify-between text-xs text-slate-400 pt-0.5">
+        <span>지시 ${fmt(data.order_cnt)}건</span>
+        <span>양품률 ${data.good_rate.toFixed(1)}%</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderKPI(d) {
+  let html = kpiCard('전체 요약', d.total, 'border-l-gray');
+  ['1100', '1200', '1300'].forEach(fc => {
+    const f = d.factories.find(x => x.factory_code === fc);
+    if (f) {
+      html += kpiCard(FC[fc].name, f, FC[fc].border);
+    } else {
+      html += `<div class="bg-white rounded-xl shadow-sm p-4 ${FC[fc].border}">
+        <p class="text-slate-500 text-sm font-medium mb-2">${FC[fc].name}</p>
+        <p class="text-slate-300 text-sm text-center py-4">데이터 없음</p></div>`;
+    }
+  });
+  document.getElementById('kpiCards').innerHTML = html;
+}
+
+// ── 추이 차트 ─────────────────────────────────────────────────────────────────
+async function loadTrend() {
+  const r = await fetch(`/api/trend?days=${trendDays}`);
+  const d = await r.json();
+  renderTrend(d.data);
+}
+
+function renderTrend(data) {
+  const byDate = {};
+  data.forEach(r => {
+    if (!byDate[r.date]) byDate[r.date] = { plan:0, actual:0 };
+    byDate[r.date].plan   += r.plan_qty;
+    byDate[r.date].actual += r.actual_qty;
+  });
+  const dates   = Object.keys(byDate).sort();
+  const labels  = dates.map(d => d.slice(5)); // MM-DD
+  const plans   = dates.map(d => byDate[d].plan);
+  const actuals = dates.map(d => byDate[d].actual);
+
+  if (trendChart) trendChart.destroy();
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '계획',
+          data: plans,
+          borderColor: '#94a3b8',
+          borderDash: [5, 4],
+          borderWidth: 1.5,
+          pointRadius: 3,
+          pointBackgroundColor: '#94a3b8',
+          fill: false,
+          tension: 0.3,
+        },
+        {
+          label: '실적',
+          data: actuals,
+          borderColor: '#3b82f6',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.07)',
+          fill: true,
+          tension: 0.3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position:'top', labels:{ usePointStyle:true, font:{ size:12 }, boxWidth:8 } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw.toLocaleString('ko-KR')}개` } },
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          grid: { color:'#f1f5f9' },
+          ticks: { callback: v => v >= 10000 ? `${(v/10000).toFixed(0)}만` : v.toLocaleString() },
+        },
+        x: { grid: { display:false } },
+      },
+    },
+  });
+}
+
+function setTrendDays(days) {
+  trendDays = days;
+  document.querySelectorAll('.trend-day-btn').forEach(btn => {
+    const active = +btn.dataset.days === days;
+    btn.className = `trend-day-btn text-xs px-3 py-1 rounded-full ${
+      active ? 'bg-blue-50 border border-blue-200 text-blue-600'
+             : 'border border-slate-200 text-slate-500 hover:bg-slate-50'}`;
+  });
+  loadTrend();
+}
+
+// ── 라인 테이블 ───────────────────────────────────────────────────────────────
+async function loadLines() {
+  const r  = await fetch(`/api/lines?date=${currentDate}`);
+  const d  = await r.json();
+  allLines = d.data;
+  renderLines();
+}
+
+function renderLines() {
+  const list = currentFc === 'all' ? allLines : allLines.filter(r => r.factory_code === currentFc);
+  if (!list.length) {
+    document.getElementById('lineTableBody').innerHTML =
+      '<tr><td colspan="8" class="text-center py-10 text-slate-300 text-sm">데이터 없음</td></tr>';
+    return;
+  }
+  document.getElementById('lineTableBody').innerHTML = list.map(r => {
+    const fc  = FC[r.factory_code] || { badge:'bg-slate-100 text-slate-600' };
+    return `
+    <tr class="border-t border-slate-50 hover:bg-slate-50">
+      <td class="px-4 py-2.5">
+        <span class="text-xs px-2 py-0.5 rounded-full ${fc.badge}">${r.factory_name}</span>
+      </td>
+      <td class="px-4 py-2.5 font-mono text-slate-700 text-sm">${r.line_code}</td>
+      <td class="px-4 py-2.5 text-right text-slate-500 text-sm">${r.order_cnt}</td>
+      <td class="px-4 py-2.5 text-right text-sm">${fmt(r.plan_qty)}</td>
+      <td class="px-4 py-2.5 text-right text-sm font-medium">${fmt(r.actual_qty)}</td>
+      <td class="px-4 py-2.5 text-right">
+        <span class="text-xs px-2 py-0.5 rounded-full ${achCls(r.achievement_rate)}">${r.achievement_rate.toFixed(1)}%</span>
+      </td>
+      <td class="px-4 py-2.5 text-right text-sm text-green-600">${fmt(r.good_qty)}</td>
+      <td class="px-4 py-2.5 text-right text-sm ${r.loss_qty > 0 ? 'text-red-500 font-medium' : 'text-slate-300'}">${fmt(r.loss_qty)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 작업지시 목록 ─────────────────────────────────────────────────────────────
+async function loadOrders() {
+  const r    = await fetch(`/api/orders?date=${currentDate}&limit=100`);
+  const d    = await r.json();
+  allOrders  = d.data;
+  renderOrders();
+}
+
+function renderOrders() {
+  const list = currentFc === 'all' ? allOrders : allOrders.filter(r => r.factory_code === currentFc);
+  if (!list.length) {
+    document.getElementById('orderTableBody').innerHTML =
+      '<tr><td colspan="8" class="text-center py-10 text-slate-300 text-sm">데이터 없음</td></tr>';
+    return;
+  }
+  const statusBadge = s => {
+    if (s === 'CLOSE') return 'bg-green-50 text-green-700';
+    if (s === 'OPEN')  return 'bg-blue-50 text-blue-700';
+    return 'bg-slate-100 text-slate-500';
+  };
+  const statusLabel = s => ({ CLOSE:'완료', OPEN:'진행중', DELETE:'삭제' }[s] || s);
+
+  document.getElementById('orderTableBody').innerHTML = list.map(r => {
+    const fc = FC[r.factory_code] || { badge:'bg-slate-100 text-slate-600' };
+    return `
+    <tr class="border-t border-slate-50 hover:bg-slate-50">
+      <td class="px-4 py-2.5">
+        <span class="text-xs px-2 py-0.5 rounded-full ${fc.badge}">${r.factory_name}</span>
+      </td>
+      <td class="px-4 py-2.5 font-mono text-xs text-slate-600">${r.order_no}</td>
+      <td class="px-4 py-2.5 text-slate-700 text-sm">${r.line_code}</td>
+      <td class="px-4 py-2.5 font-mono text-xs text-slate-500">${r.mat_code}</td>
+      <td class="px-4 py-2.5">
+        <span class="text-xs px-2 py-0.5 rounded-full ${statusBadge(r.status)}">${statusLabel(r.status)}</span>
+      </td>
+      <td class="px-4 py-2.5 text-right text-sm">${fmt(r.plan_qty)}</td>
+      <td class="px-4 py-2.5 text-right text-sm font-medium">${fmt(r.actual_qty)}</td>
+      <td class="px-4 py-2.5 text-right">
+        <span class="text-xs px-2 py-0.5 rounded-full ${achCls(r.achievement_rate)}">${r.achievement_rate.toFixed(1)}%</span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 탭 / 필터 ─────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const active = btn.dataset.tab === tab;
+    btn.className = `tab-btn ${active ? 'tab-active' : 'tab-inactive'} text-xs px-4 py-1.5 rounded-t-lg transition-colors`;
+  });
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
+  // 컨트롤 가시성
+  document.getElementById('trendControls').classList.toggle('hidden', tab !== 'trend');
+  document.getElementById('factoryFilter').classList.toggle('hidden', tab === 'trend');
+}
+
+function filterFactory(fc) {
+  currentFc = fc;
+  document.querySelectorAll('.fac-btn').forEach(btn => {
+    const active = btn.dataset.fc === fc;
+    btn.className = `fac-btn text-xs px-3 py-1 rounded-full transition-colors ${
+      active ? 'bg-slate-700 text-white'
+             : btn.dataset.fc === '1100' ? 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+             : btn.dataset.fc === '1200' ? 'bg-green-100 text-green-700 hover:bg-green-200'
+             : btn.dataset.fc === '1300' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+  });
+  renderLines();
+  renderOrders();
+}
+
+// ── AI 채팅 ───────────────────────────────────────────────────────────────────
+function toggleChat() {
+  chatOpen = !chatOpen;
+  document.getElementById('chatPanel').classList.toggle('hidden', !chatOpen);
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+}
+
+function quickSend(msg) {
+  if (!chatOpen) toggleChat();
+  document.getElementById('chatInput').value = msg;
+  sendChat();
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg   = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  addMsg(msg, 'user');
+  const loadId = 'load-' + Date.now();
+  addMsg('<span class="dot-anim">분석 중</span>', 'ai', loadId);
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+
+  try {
+    const res  = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ message: msg, date: currentDate }),
+    });
+    const data = await res.json();
+    document.getElementById(loadId)?.remove();
+    // 마크다운 간단 변환 (줄바꿈, 볼드, 코드)
+    const html = (data.response || '응답 없음')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+)`/g, '<code class="bg-slate-200 px-1 rounded text-xs">$1</code>')
+      .replace(/\n/g, '<br>');
+    addMsg(html, 'ai');
+  } catch {
+    document.getElementById(loadId)?.remove();
+    addMsg('오류가 발생했습니다. 다시 시도해주세요.', 'ai');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function addMsg(html, type, id = null) {
+  const wrap = document.createElement('div');
+  if (id) wrap.id = id;
+  wrap.className = type === 'user' ? 'flex justify-end' : 'flex';
+  wrap.innerHTML = `<div class="${type === 'user' ? 'msg-user' : 'msg-ai'} p-3 text-sm max-w-[92%] leading-relaxed prose-chat">${html}</div>`;
+  const box = document.getElementById('chatMessages');
+  box.appendChild(wrap);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── 시작 ──────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

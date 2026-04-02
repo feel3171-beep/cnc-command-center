@@ -1,0 +1,6 @@
+pymssql
+requests
+python-dotenv
+streamlit
+plotly
+pandas

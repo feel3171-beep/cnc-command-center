@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: commandcenter
+      POSTGRES_USER: cc_admin
+      POSTGRES_PASSWORD: cc2026!
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cc_admin -d commandcenter"]
+      interval: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ./packages/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://cc_admin:cc2026!@postgres:5432/commandcenter
+      AGENT_SERVER_URL: http://agent:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agent:
+    build:
+      context: ./packages/agent-server
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./packages/agent-server/.env
+    environment:
+      DATABASE_URL: postgresql://cc_admin:cc2026!@postgres:5432/commandcenter
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: ./packages/agent-server
+      dockerfile: Dockerfile
+    command: python -m app.scheduler.engine
+    env_file:
+      - ./packages/agent-server/.env
+    environment:
+      DATABASE_URL: postgresql://cc_admin:cc2026!@postgres:5432/commandcenter
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

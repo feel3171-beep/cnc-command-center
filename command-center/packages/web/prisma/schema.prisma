@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskStatus {
+  INBOX
+  WIP
+  REVIEW
+  FINAL
+  ARCHIVE
+}
+
+enum Priority {
+  P0
+  P1
+  P2
+  P3
+}
+
+enum AgentType {
+  PRODUCTION
+  HR
+  FINANCE
+  COST
+}
+
+enum PMRole {
+  FPA        // FP&A (Financial Planning & Analysis)
+  HR_LEAD    // 인사팀장
+  PROD_LEAD  // 생산팀장
+  COST_LEAD  // 원가팀장
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum JobStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String   @default("#6366f1")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tasks       Task[]
+  cycles      Cycle[]
+
+  @@map("projects")
+}
+
+model Cycle {
+  id        String     @id @default(cuid())
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int        @default(0)
+  startDate DateTime?
+  endDate   DateTime?
+  waves     Wave[]
+  contracts Contract[]
+
+  @@map("cycles")
+}
+
+model Wave {
+  id        String    @id @default(cuid())
+  cycleId   String
+  cycle     Cycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int       @default(0)
+  startDate DateTime?
+  endDate   DateTime?
+  tasks     Task[]
+
+  @@map("waves")
+}
+
+model Contract {
+  id          String   @id @default(cuid())
+  cycleId     String
+  cycle       Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  dueDate     DateTime?
+  isComplete  Boolean  @default(false)
+
+  @@map("contracts")
+}
+
+model Task {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus  @default(INBOX)
+  priority    Priority    @default(P2)
+  projectId   String?
+  project     Project?    @relation(fields: [projectId], references: [id])
+  waveId      String?
+  wave        Wave?       @relation(fields: [waveId], references: [id])
+  agentType   AgentType?
+  pmRole      PMRole?     // 담당 PM 역할
+  pmName      String?     // PM 이름 (예: "김팀장")
+  dueDate     DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  tags        String[]    @default([])
+  sortOrder   Int         @default(0)
+  isArchived  Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  outputs     TaskOutput[]
+  chatMessages ChatMessage[]
+  agentRuns   AgentRun[]
+
+  @@index([status])
+  @@index([projectId])
+  @@index([priority])
+  @@index([agentType])
+  @@map("tasks")
+}
+
+model TaskOutput {
+  id          String   @id @default(cuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  filename    String
+  contentType String   @default("text/markdown")
+  content     String
+  fileSize    Int      @default(0)
+  createdBy   String   @default("user")
+  createdAt   DateTime @default(now())
+
+  @@map("task_outputs")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  channel   String   @default("staff") // staff | pm
+  role      String   // user | assistant | system
+  content   String
+  metadata  Json?    // tool calls, etc.
+  createdAt DateTime @default(now())
+
+  @@index([taskId, channel, createdAt])
+  @@map("chat_messages")
+}
+
+model AgentRun {
+  id            String    @id @default(cuid())
+  agentType     AgentType
+  trigger       String    @default("manual") // manual | scheduler | task
+  taskId        String?
+  task          Task?     @relation(fields: [taskId], references: [id])
+  status        RunStatus @default(PENDING)
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  turnsUsed     Int       @default(0)
+  modelUsed     String?
+  totalTokens   Int       @default(0)
+  resultSummary String?
+  errorMessage  String?
+  toolCalls     Json[]    @default([])
+
+  @@index([agentType, startedAt(sort: Desc)])
+  @@index([status])
+  @@map("agent_runs")
+}
+
+model ScheduledJob {
+  id             String    @id @default(cuid())
+  name           String
+  description    String?
+  cronExpression String
+  agentType      AgentType
+  missionPrompt  String
+  status         JobStatus @default(ACTIVE)
+  slackChannel   String?
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  runCount       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("scheduled_jobs")
+}

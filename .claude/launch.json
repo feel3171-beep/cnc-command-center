@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "command-center",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/next/dist/bin/next", "dev"],
+      "port": 3000,
+      "cwd": "cc-web",
+      "autoPort": true
+    },
+    {
+      "name": "kakao-recruit",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "app:app", "--reload", "--host", "127.0.0.1", "--port", "8000", "--app-dir", "kakao_recruit"],
+      "port": 8000
+    },
+    {
+      "name": "sales-dashboard",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["sales_dashboard.py"],
+      "port": 5002
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "Agent(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__mssql__*(*)",
+      "mcp__google-sheets__*(*)",
+      "mcp__Claude_Preview__*(*)",
+      "mcp__Claude_in_Chrome__*(*)",
+      "mcp__scheduled-tasks__*(*)",
+      "mcp__107e0604-c0e3-40de-8e6f-13ea09bfd86d__*(*)",
+      "mcp__7c5bfd87-6136-4d39-ac81-e7113b263316__*(*)",
+      "mcp__e1aed8a7-7e07-49b7-aa81-d688a8222ce8__*(*)",
+      "mcp__c1fc4002-5f49-5f9d-a4e5-93c4ef5d6a75__*(*)",
+      "mcp__mcp-registry__*(*)"
+    ],
+    "deny": []
+  }
+}

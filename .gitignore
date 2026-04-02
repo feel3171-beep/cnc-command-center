@@ -1,0 +1,37 @@
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.env
+*.pickle
+token.pickle
+venv/
+.venv/
+dist/
+build/
+*.egg-info/
+desktop.ini
+tsconfig.tsbuildinfo
+cc-web
+reports/
+
+# Lock files (LibreOffice)
+*.xlsx\#
+.~lock*
+
+# Excel files (large binary)
+*.xlsx
+*.xls
+
+# Embedded git repos
+kakao_recruit/
+linkedin_recruiter/
+mes-dashboard/
+slack_bot/gdrive_bot/
+slack_bot/production_bot/
+
+# Date folders with analysis files
+2026-03-02/
+
+# Package lock (large)
+package-lock.json

@@ -1,0 +1,26 @@
+Finding non-empty columns in 매출채권_RAW using pandas...
+  231 cols with data (out of 838)
+Loading workbooks...
+Processing: 📋 가이드... -> 49 rows (formulas preserved)
+Processing: SAP_재무제표... -> 8399 rows (values)
+Processing: 수주_RAW... -> 19225 rows (values)
+Processing: 생산량_RAW... -> 50000 rows (values)
+Processing: 매출상세_RAW... -> 23599 rows (values)
+Processing: 매출채권_RAW... -> 23598 rows x 231 cols (values)
+Processing: 인원현황_RAW... -> 31 rows (values)
+Processing: ⚙ 매핑테이블... -> 101 rows (formulas preserved)
+Processing: ① PL 입력... -> 84 rows (formulas preserved)
+Processing: ② 제조원가 입력... -> 77 rows (formulas preserved)
+Processing: ③ 매출상세 입력... -> 1005 rows (formulas preserved)
+Processing: ④ 생산량 입력... -> 24 rows (formulas preserved)
+Processing: ⑤수주잔량_요약... -> 137 rows (formulas preserved)
+Processing: ⑥ 총비용 (OUTPUT)... -> 118 rows (formulas preserved)
+Processing: ⑦ 생산Breakdown (OUTPUT)... -> 31 rows (formulas preserved)
+Processing: 2025_RAW... -> 13815 rows (values)
+Processing: ⑧ 월별PL (OUTPUT)... -> 75 rows (formulas preserved)
+Processing: ⑨ 요약PL & KPI... -> 19 rows (formulas preserved)
+Processing: ⑩ 매출상세 (OUTPUT)... -> 372 rows (formulas preserved)
+Processing: ⑪ 매출채권 (OUTPUT)... -> 274 rows (formulas preserved)
+
+Done! Output: C:\Users\user\Downloads\FY2602_결산_GSheet용_v2.xlsx
+File size: 20.4 MB
