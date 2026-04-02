@@ -6,6 +6,10 @@ from app.agents.tools.mssql_tools import TOOL_QUERY_SALES_DB, handle_query_db
 from app.agents.tools.gsheet_tools import TOOL_READ_GSHEET, handle_read_gsheet
 from app.agents.tools.slack_tools import TOOL_SEND_SLACK, handle_send_slack
 from app.agents.tools.report_tools import TOOL_SAVE_REPORT, handle_save_report
+from app.agents.tools.nas_tools import (
+    TOOL_LIST_NAS_FILES, handle_list_nas_files,
+    TOOL_READ_NAS_EXCEL, handle_read_nas_excel,
+)
 
 
 class FinanceAgent(BaseAgent):
@@ -158,6 +162,34 @@ MWIPMATDEF: 자재마스터 (MAT_CODE, MAT_DESC, UNIT)
 ⑦ 계좌대체 내역이 자금일보 입출금에 정확히 반영됐는지
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[NAS 데이터 소스] X:드라이브 (경영팀/재경팀)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+■ 자금 관련 (X:/02 자금/)
+- X:/02 자금/1. 자금일보/ — 일별 자금일보 (연도/분기별 정리)
+- X:/02 자금/3. 금일지출계획서/ — FY별 금일지출계획서
+- X:/02 자금/4. 자금계획실적보고서/ — 분기별 자금계획 대비 실적
+- X:/02 자금/5. 자금계획/ — 캐시플로우 계획
+- X:/02 자금/6. 법인카드/ — 법인카드 실적
+- X:/02 자금/7. 투자운영/ — 공모자금 운영
+- X:/02 자금/8. 차입금/ — 차입금 현황, 현금흐름
+- X:/02 자금/★ 자금업무매뉴얼_20250508.xlsx — 재무 업무 매뉴얼
+
+■ 결산 관련 (X:/03 결산/)
+- X:/03 결산/FY2025/ → 별도/연결/감사전후/세무
+- X:/03 결산/FY2026/ → 월별 결산 (1월~)
+  - 선급비용, 선도계약, 감가상각, 차입금평가, 미사용연차, 퇴직연금 등
+
+■ SAP (X:/07 SAP/)
+- X:/07 SAP/07 SAP 계정코드/ — 계정코드 V3.4 (2026.03.18)
+- SAP FI/CO/MM/SD/PP/TR 교육자료
+
+■ NAS 파일 조회 시
+- list_nas_files로 폴더 탐색 후 read_nas_excel로 파일 읽기
+- 최신 파일은 날짜(YYMMDD) 기준으로 정렬
+- ~$로 시작하는 파일은 임시파일 (무시)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [공통 규칙]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - 금액은 원 단위, 천단위 구분기호 포함
@@ -168,10 +200,14 @@ MWIPMATDEF: 자재마스터 (MAT_CODE, MAT_DESC, UNIT)
 
     @property
     def tools(self) -> list[dict]:
-        return [TOOL_QUERY_SALES_DB, TOOL_READ_GSHEET, TOOL_SEND_SLACK, TOOL_SAVE_REPORT]
+        return [TOOL_LIST_NAS_FILES, TOOL_READ_NAS_EXCEL, TOOL_QUERY_SALES_DB, TOOL_READ_GSHEET, TOOL_SEND_SLACK, TOOL_SAVE_REPORT]
 
     def handle_tool(self, name: str, tool_input: dict) -> str:
-        if name == "query_sales_db":
+        if name == "list_nas_files":
+            return handle_list_nas_files(tool_input)
+        elif name == "read_nas_excel":
+            return handle_read_nas_excel(tool_input)
+        elif name == "query_sales_db":
             return handle_query_db(tool_input)
         elif name == "read_google_sheet":
             return handle_read_gsheet(tool_input)

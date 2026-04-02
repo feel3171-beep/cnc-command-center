@@ -6,6 +6,10 @@ from app.agents.tools.mssql_tools import TOOL_QUERY_PRODUCTION_DB, handle_query_
 from app.agents.tools.gsheet_tools import TOOL_READ_GSHEET, handle_read_gsheet
 from app.agents.tools.slack_tools import TOOL_SEND_SLACK, handle_send_slack
 from app.agents.tools.report_tools import TOOL_SAVE_REPORT, handle_save_report
+from app.agents.tools.nas_tools import (
+    TOOL_LIST_NAS_FILES, handle_list_nas_files,
+    TOOL_READ_NAS_EXCEL, handle_read_nas_excel,
+)
 
 
 class HRAgent(BaseAgent):
@@ -66,7 +70,19 @@ class HRAgent(BaseAgent):
 2. MES DB (MSSQL) — 생산 인원 관련 추가 참조
    - MWIPORDSTS: 작업지시 (라인별 인원 배치)
 
-3. 이전 브리핑 이메일 패턴을 참고하여 동일 형식으로 생성
+3. NAS Y:드라이브 (인사팀)
+   핵심 파일:
+   - Y:/Recruit/Total_채용진행사항.xlsx — 전사 채용 파이프라인 마스터
+   - Y:/Recruit/인력현황(정규,도급 TO).xlsx — 정원/현원 현황 ★핵심
+   - Y:/260102_씨앤씨 면접일정.xlsx — 면접 일정 (다중 시트: 2025이후/이전)
+   - Y:/Recruit/채용현황(정규,도급)_26.02_보고.xlsx — 최신 채용현황
+   - Y:/250414_부서별 조직도.xlsx — 조직도
+   - Y:/Recruit/보고자료/ — 경쟁사 분석, 입사포기 원인, 연봉 벤치마크
+   - Y:/채용현황(정규,도급)_26.01.xlsx — 월별 채용현황
+   - Y:/260310_산업기능요원 명단.xlsx — 산업기능요원
+   - Y:/2024~2025 OJT 참여자 명단_상시 업데이트.xlsx — OJT 현황
+
+4. 이전 브리핑 이메일 패턴을 참고하여 동일 형식으로 생성
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [작업 지침]
@@ -84,6 +100,8 @@ class HRAgent(BaseAgent):
     @property
     def tools(self) -> list[dict]:
         return [
+            TOOL_LIST_NAS_FILES,
+            TOOL_READ_NAS_EXCEL,
             TOOL_READ_GSHEET,
             TOOL_QUERY_PRODUCTION_DB,
             TOOL_SEND_SLACK,
@@ -91,7 +109,11 @@ class HRAgent(BaseAgent):
         ]
 
     def handle_tool(self, name: str, tool_input: dict) -> str:
-        if name == "read_google_sheet":
+        if name == "list_nas_files":
+            return handle_list_nas_files(tool_input)
+        elif name == "read_nas_excel":
+            return handle_read_nas_excel(tool_input)
+        elif name == "read_google_sheet":
             return handle_read_gsheet(tool_input)
         elif name == "query_production_db":
             return handle_query_db(tool_input)
